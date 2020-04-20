@@ -1,0 +1,72 @@
+#! /bin/bash
+#
+# (GPL3+) Alberto Salvia Novella (es20490446e)
+# Updated by Paweł "pavroo" Pijanowski April 20, 2020
+# usage: sparky-pass-check <user> <password>
+# to generate output at /tmp
+
+if [ -f /tmp/sparky-passcheck ]; then
+	rm -f /tmp/sparky-passcheck
+fi
+touch /tmp/sparky-passcheck
+
+passwordHash () {
+    password=${1}
+    salt=${2}
+    encryption=${3}
+
+    hashes=$(echo ${password} | openssl passwd -${encryption} -salt ${salt} -stdin)
+    echo $(substring ${hashes} "$" "3")
+}
+
+
+passwordIsValid () {
+    user=${1}
+    password=${2}
+
+    encryption=$(secret "encryption" ${user})
+    salt=$(secret "salt" ${user})
+    salted=$(secret "salted" ${user})
+    hash=$(passwordHash ${password} ${salt} ${encryption})
+
+    [ ${salted} = ${hash} ] && echo "true" > /tmp/sparky-passcheck || echo "false" > /tmp/sparky-passcheck
+}
+
+
+secret () {
+    secret=${1}
+    user=${2}
+    shadow=$(shadow ${user})
+
+    if [ ${secret} = "encryption" ]; then
+        position=1
+    elif [ ${secret} = "salt" ]; then
+        position=2
+    elif [ ${secret} = "salted" ]; then
+        position=3
+    fi
+
+    echo $(substring ${shadow} "$" ${position})
+}
+
+
+shadow () {
+    user=${1}
+    shadow=$(cat /etc/shadow | grep ${user})
+    shadow=$(substring ${shadow} ":" "1")
+    echo ${shadow}
+}
+
+
+substring () {
+    string=${1}
+    separator=${2}
+    position=${3}
+
+    substring=${string//"${separator}"/$'\2'}
+    IFS=$'\2' read -a substring <<< "${substring}"
+    echo ${substring[${position}]}
+}
+
+
+passwordIsValid ${@}
